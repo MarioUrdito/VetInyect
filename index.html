@@ -236,11 +236,19 @@
   .app { padding-block: 14px 24px; gap: 10px; }
   .banner { padding: 16px 16px 14px; }
   #p-calc.panel, #p-adm.panel { padding: 14px; }
-  .voicebar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .micbtn { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px 0 11px; border: 0; border-radius: 20px; background: var(--brand); color: var(--brand-ink); font: inherit; font-weight: 600; font-size: .88rem; cursor: pointer; }
-  .micbtn svg { width: 18px; height: 18px; }
-  .micbtn.on { background: #C0392B; color: #fff; animation: micp 1.2s ease-in-out infinite; }
-  @keyframes micp { 50% { box-shadow: 0 0 0 6px rgba(192,57,43,.25); } }
+  .voicebar { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 12px; }
+  .micbtn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 6px 18px 6px 8px; border: 0; border-radius: 28px; background: linear-gradient(135deg, var(--brand) 0%, #2A9A62 100%); color: var(--brand-ink); font: inherit; text-align: left; cursor: pointer; box-shadow: 0 3px 10px rgba(23,107,64,.28); transition: transform .12s, box-shadow .12s; }
+  .micbtn:active { transform: scale(.985); box-shadow: 0 1px 4px rgba(23,107,64,.3); }
+  .micbtn .mic-ic { flex: none; width: 44px; height: 44px; border-radius: 50%; background: #fff; display: grid; place-items: center; box-shadow: 0 0 0 4px rgba(255,255,255,.22); }
+  .micbtn .mic-ic svg { width: 26px; height: 26px; color: #176B40; }
+  .micbtn .mic-tx { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+  .micbtn .t1 { font-weight: 700; font-size: 1.05rem; }
+  .micbtn .t2 { font-size: .78rem; opacity: .85; }
+  .micbtn .t-on { display: none; }
+  .micbtn.on { background: linear-gradient(135deg, #B3261E 0%, #E0523F 100%); color: #fff; animation: micp 1.3s ease-in-out infinite; box-shadow: 0 3px 12px rgba(179,38,30,.35); }
+  .micbtn.on .mic-ic svg { color: #B3261E; }
+  .micbtn.on .t-off { display: none; } .micbtn.on .t-on { display: block; }
+  @keyframes micp { 50% { box-shadow: 0 0 0 7px rgba(224,82,63,.25); } }
   .vform { display: flex; gap: 8px; margin-bottom: 10px; } .vform[hidden] { display: none; }
   .vform input { flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: inherit; background: var(--bg); color: var(--ink); }
   .vform button { height: 40px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--brand); color: var(--brand-ink); font: inherit; font-weight: 600; }
@@ -291,7 +299,7 @@
 
   <section class="panel" id="p-calc" role="tabpanel" aria-labelledby="tab-calc">
     <p class="empty" id="calcEmpty" hidden>Aún no hay medicamentos en la base de datos.</p>
-    <div class="voicebar" id="voiceBar"><button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Dosis por voz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Voz</button><div class="vline" id="voiceLine" role="status" aria-live="polite"></div></div>
+    <div class="voicebar" id="voiceBar"><button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Pregunta la dosis por voz"><span class="mic-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/><path d="M2.5 9.5v3M21.5 9.5v3" stroke-width="1.8"/></svg></span><span class="mic-tx"><span class="t1 t-off">Pregunta la dosis</span><span class="t2 t-off">Di el fármaco, la especie y el peso</span><span class="t1 t-on">Escuchando…</span><span class="t2 t-on">Toca para parar</span></span></button><div class="vline" id="voiceLine" role="status" aria-live="polite"></div></div>
     <form class="vform" id="voiceForm" hidden><input id="voiceTxt" type="text" autocomplete="off" placeholder="Escribe o dicta: meloxicam perro 12 kilos" aria-label="Pregunta por escrito o dictado"><button type="submit">OK</button></form>
     <div class="fields calcgrid">
       <div class="field">
@@ -705,8 +713,8 @@ function applyAccess() {
   });
   let active = false, rec = null, synthOk = 'speechSynthesis' in window;
   function show(t, cls) { line.textContent = t; line.className = 'vline' + (cls ? ' ' + cls : ''); }
-  function say(t) {
-    show(t, 'say');
+  function say(t, quiet) {
+    if (quiet) show(''); else show(t, 'say');
     return new Promise(res => {
       if (!synthOk || !active) return res();
       try {
@@ -727,7 +735,7 @@ function applyAccess() {
       rec.onresult = e => { got = e.results[0][0].transcript; };
       rec.onerror = e => { if (e.error === 'no-speech' || e.error === 'aborted') return; rej(e.error); };
       rec.onend = () => res(got);
-      show('Escuchando…', 'hear'); btn.classList.add('on');
+      show(''); btn.classList.add('on');
       try { rec.start(); } catch (e) { rej('error'); }
     });
   }
@@ -772,10 +780,10 @@ function applyAccess() {
           $('med').value = S.med.id; $('peso').value = String(S.w).replace('.', ',');
           document.querySelectorAll('input[name=sp]').forEach(r => r.dispatchEvent(new Event('change')));
           const dose = S.med[S.sp], plural = S.sp === 'perro' ? 'perros' : 'gatos';
-          if (!(dose > 0)) { await say(S.med.nombre + ' no está indicado para ' + plural + '.'); }
+          if (!(dose > 0)) { await say(S.med.nombre + ' no está indicado para ' + plural + '.', true); }
           else {
             const vol = dose * S.w;
-            await say('La dosis de ' + S.med.nombre + ' es ' + (vol < 0.01 ? 'menos de 0,01' : nf.format(vol)) + ' mililitros.');
+            await say('La dosis de ' + S.med.nombre + ' es ' + (vol < 0.01 ? 'menos de 0,01' : nf.format(vol)) + ' mililitros.', true);
           }
           break;
         }
@@ -803,20 +811,20 @@ const CRI_DRUGS = {
   lidocaina: { nombre: 'Lidocaína', conc: 20, carga: { rango: '0,5–1 mg/kg IV', def: '0,5' }, cri: { rango: '0,6–3,0 mg/kg/h', def: '1,5' } },
   metadona:  { nombre: 'Metadona', conc: 10, carga: { rango: '0,5 mg/kg', def: '0,1' }, cri: { rango: '0,083–0,166 mg/kg/h', def: '0,12' } }
 };
-CRI_DRUGS.alfaxalona = { nombre: 'Alfaxalona', conc: null };
+CRI_DRUGS.alfaxalona = { nombre: 'Alfaxalona', conc: 10, carga: { rango: '1,5–9,7 mg/kg IV a efecto en 1 min, IM', def: '2' }, cri: { rango: '4–9 mg/kg/h', def: '4' } };
 CRI_DRUGS.buprenorfina = { nombre: 'Buprenorfina', conc: 0.3, concs: [0.3, 0.6], carga: { rango: '0,01–0,02 mg/kg', def: '0,01' }, cri: { rango: '0,00245–0,0075 mg/kg/h', def: '0,003' } };
 CRI_DRUGS.butorfanol = { nombre: 'Butorfanol', conc: 2, concs: [2, 4, 10], carga: { rango: '0,01–0,05 mg/kg', def: '0,01' }, cri: { rango: '0,1–0,4 mg/kg/h', def: '0,1' } };
 CRI_DRUGS.dexmedetomidina = { nombre: 'Dexmedetomidina', conc: 0.1, concs: [0.1, 0.5], carga: { rango: '0,001–0,002 mg/kg', def: '0,001' }, cri: { rango: '0,0005–0,002 mg/kg/h', def: '0,001' } };
-CRI_DRUGS.dobutamina = { nombre: 'Dobutamina', conc: null };
-CRI_DRUGS.dopamina = { nombre: 'Dopamina', conc: null };
-CRI_DRUGS.furosemida = { nombre: 'Furosemida', conc: null };
+CRI_DRUGS.dobutamina = { nombre: 'Dobutamina', conc: 12.5, carga: null, cri: { rango: '0,06–0,6 mg/kg/h', def: '0,12' } };
+CRI_DRUGS.dopamina = { nombre: 'Dopamina', conc: 40, concs: [40, 80, 160], carga: null, cri: { rango: '0,12–0,6 mg/kg/h', def: '0,4' } };
+CRI_DRUGS.furosemida = { nombre: 'Furosemida', conc: 50, carga: { rango: '1–4 mg/kg', def: '2' }, cri: { rango: '0,1–1 mg/kg/h', def: '0,5' } };
 CRI_DRUGS.hidromorfona = { nombre: 'Hidromorfona', conc: 2, concs: [2, 10], carga: { rango: '0,05–0,1 mg/kg', def: '0,05' }, cri: { rango: '0,024–0,072 mg/kg/h', def: '0,025' } };
-CRI_DRUGS.metoclopramida = { nombre: 'Metoclopramida', conc: null };
-CRI_DRUGS.midazolam = { nombre: 'Midazolam', conc: 5, concs: [5, 1], carga: { rango: '0,1–0,3 mg/kg SC, IM, IV', def: '0,2' }, cri: { rango: '0,2–0,4 mg/kg/h', def: '0,2' } };
+CRI_DRUGS.metoclopramida = { nombre: 'Metoclopramida', conc: 5, carga: { rango: '0,2–0,4 mg/kg', def: '0,2' }, cri: { rango: '0,01–0,09 mg/kg/h', def: '0,05' } };
+CRI_DRUGS.midazolam = { nombre: 'Midazolam', conc: 1, concs: [1, 5], carga: { rango: '0,1–0,3 mg/kg SC, IM, IV', def: '0,2' }, cri: { rango: '0,2–0,4 mg/kg/h', def: '0,2' } };
 CRI_DRUGS.morfina = { nombre: 'Morfina', conc: 10, concs: [10, 15, 25], carga: { rango: '0,1–0,5 mg/kg IV, IM', def: '0,1' }, cri: { rango: '0,12–0,36 mg/kg/h (2–6 µg/kg/min)', def: '0,12' } };
-CRI_DRUGS.nitroprusiato = { nombre: 'Nitroprusiato', conc: null };
-CRI_DRUGS.noradrenalina = { nombre: 'Noradrenalina', conc: null };
-CRI_DRUGS.propofol = { nombre: 'Propofol', conc: null };
+CRI_DRUGS.nitroprusiato = { nombre: 'Nitroprusiato', conc: 25, carga: null, cri: { rango: '0,03–0,6 mg/kg/h', def: '0,04' }, nota: 'Vigilar la presión arterial de forma continua' };
+CRI_DRUGS.noradrenalina = { nombre: 'Noradrenalina', conc: 1, carga: null, cri: { rango: '0,003–0,12 mg/kg/h', def: '0,004' }, nota: 'Vigilar la presión arterial de forma continua' };
+CRI_DRUGS.propofol = { nombre: 'Propofol', conc: 10, carga: { rango: '2,2–8 mg/kg', def: '3' }, cri: { rango: '1–10 mg/kg/h', def: '5' }, nota: 'CRI en dextrosa al 5 % (D5W)' };
 const CRI_COMBOS = [
   { id: 'buprenorfina-lidocaina-ketamina', nombre: 'Buprenorfina-Lidocaína-Ketamina', drugs: ['buprenorfina', 'lidocaina', 'ketamina'] },
   { id: 'butorfanol-lidocaina-ketamina', nombre: 'Butorfanol-Lidocaína-Ketamina', drugs: ['butorfanol', 'lidocaina', 'ketamina'] },
@@ -908,8 +916,8 @@ function criActive() {
   return keys.map(k => {
     const d = D[k], ck = sp + ':' + k;
     if (d.conc == null) return { custom: true, pend: true, s: CS[ck] = CS[ck] || { nombre: d.nombre, conc: '', carga: '', cri: '' } };
-    const s = CS[ck] = CS[ck] || { carga: d.carga.def, cri: d.cri.def, conc: String(d.conc) };
-    return { key: k, s, nombre: d.nombre, conc: d.conc, concs: d.concs, rc: d.carga.rango, rr: d.cri.rango };
+    const s = CS[ck] = CS[ck] || { carga: d.carga ? d.carga.def : '', cri: d.cri.def, conc: String(d.conc) };
+    return { key: k, s, nombre: d.nombre, conc: d.conc, concs: d.concs, rc: d.carga ? d.carga.rango : null, rr: d.cri.rango, noLoad: !d.carga, nota: d.nota };
   });
 }
 function criSetCards() {
@@ -927,9 +935,10 @@ function criSetCards() {
         ? '<span class="concseg" role="group" aria-label="Concentración">' + d.concs.map(c => '<button type="button" data-conc="' + c + '" data-i="' + i + '" aria-pressed="' + (String(c) === String(s.conc)) + '">' + String(c).replace('.', ',') + ' mg/mL</button>').join('') + '</span>'
         : '<span class="chip">' + esc(String(d.conc).replace('.', ',')) + ' mg/mL</span>';
       return '<div class="dcard v2" style="--c:' + DCOL[i % DCOL.length] + '"><div class="dhead"><span><i class="dot"></i>' + esc(d.nombre) + '</span>' + chip + '</div><div class="dbody">' +
-        '<div class="two"><div class="field"><label for="dc' + i + '">Carga (mg/kg)</label><input id="dc' + i + '" inputmode="decimal" autocomplete="off" value="' + esc(s.carga) + '"><small>' + esc(d.rc) + '</small></div>' +
+        '<div class="two"' + (d.noLoad ? ' style="grid-template-columns:minmax(0,1fr)"' : '') + '>' + (d.noLoad ? '' : '<div class="field"><label for="dc' + i + '">Carga (mg/kg)</label><input id="dc' + i + '" inputmode="decimal" autocomplete="off" value="' + esc(s.carga) + '"><small>' + esc(d.rc) + '</small></div>') +
         '<div class="field"><label for="dr' + i + '">CRI (mg/kg/h)</label><input id="dr' + i + '" inputmode="decimal" autocomplete="off" value="' + esc(s.cri) + '"><small>' + esc(d.rr) + '</small></div></div>' +
-        '<div class="two"><div class="tile"><span>Dosis de carga</span>' + syringeSvg('dl' + i) + '</div><div class="tile"><span>Dosis CRI · en la bolsa</span>' + bagSvg('cri' + i, '<rect x="0" y="40" width="100" height="90" class="liqc"/>', '—', 'dm' + i) + '</div></div></div></div>';
+        (d.nota ? '<small>' + esc(d.nota) + '</small>' : '') +
+        '<div class="two"' + (d.noLoad ? ' style="grid-template-columns:minmax(0,1fr)"' : '') + '>' + (d.noLoad ? '' : '<div class="tile"><span>Dosis de carga</span>' + syringeSvg('dl' + i) + '</div>') + '<div class="tile"><span>Dosis CRI · en la bolsa</span>' + bagSvg('cri' + i, '<rect x="0" y="40" width="100" height="90" class="liqc"/>', '—', 'dm' + i) + '</div></div></div></div>';
     }
     const head = d.pend
       ? '<div class="dname">' + esc(s.nombre) + '</div><p class="empty" style="margin:0">Aún sin datos cargados: introduce la concentración y las dosis.</p><div class="field"><label for="dk' + i + '">Concentración (mg/mL)</label><input id="dk' + i + '" inputmode="decimal" autocomplete="off" value="' + esc(s.conc) + '"></div>'
@@ -969,7 +978,7 @@ function criRender() {
   $('cDrops').textContent = r.ok && r.drops !== null ? nf2.format(r.drops) : '—';
   cDrugsNow.forEach((d, i) => {
     const o = r.ok ? r.drugs[i] : { loadMl: null, criMl: null };
-    $('dl' + i).textContent = o.loadMl !== null ? nf2.format(o.loadMl) + ' mL' : '—';
+    if ($('dl' + i)) $('dl' + i).textContent = o.loadMl !== null ? nf2.format(o.loadMl) + ' mL' : '—';
     $('dm' + i).textContent = o.criMl !== null ? nf2.format(o.criMl) + ' mL' : '—';
   });
   if (!r.ok) { sm.innerHTML = '<p class="empty">Introduce el peso, el volumen de la bolsa y la velocidad.</p>'; al.innerHTML = ''; return; }
