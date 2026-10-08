@@ -298,6 +298,31 @@
     <button type="button" role="tab" id="tab-adm" aria-selected="false" aria-controls="p-adm">Mis protocolos</button>
   </div>
 
+  <div id="disc" role="dialog" aria-modal="true" aria-labelledby="discT" style="position:fixed;inset:0;z-index:99999;background:rgba(15,42,28,.72);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+    <div style="background:#fff;color:#0F2A1C;max-width:460px;width:100%;border-radius:18px;padding:22px 20px;box-shadow:0 12px 40px rgba(0,0,0,.35);max-height:calc(100vh - 32px);overflow:auto">
+      <h2 id="discT" style="margin:0 0 4px;font-size:20px;color:#176B40">Aviso importante</h2>
+      <p style="margin:0 0 12px;font-size:13px;color:#4A6355">Lee y acepta las condiciones para usar VetInyect.</p>
+      <ul style="margin:0 0 14px;padding-left:18px;font-size:14px;line-height:1.45">
+        <li>VetInyect es <b>solo una herramienta de ayuda</b>, pensada para <b>uso de profesionales veterinarios</b>, para calcular dosis de medicamentos inyectables a partir del peso. No sustituye el criterio clínico del veterinario.</li>
+        <li>Los resultados son <b>orientativos y no se establecen como definitivos</b>.</li>
+        <li>Es <b>obligatorio comprobar y verificar</b> siempre la dosis, la concentración, la vía de administración y las contraindicaciones con la ficha técnica del medicamento y con fuentes oficiales antes de administrarlo.</li>
+        <li>Los datos pueden contener errores, estar incompletos o desactualizados, y algunas vías o dosis se han extrapolado de otras especies o de fichas de uso humano.</li>
+        <li>Las concentraciones y las vías se han contrastado, cuando ha sido posible, con las fichas técnicas oficiales (CIMAVet y CIMA, de la AEMPS). Las dosis proceden de protocolos y referencias de uso clínico, no de las fichas. Última revisión de los datos: octubre de 2026.</li>
+        <li>Si detectas un error en algún dato, comunícalo cuanto antes a <a href="mailto:vetinyect@outlook.es" target="_blank" rel="noopener" style="color:#176B40;font-weight:700">vetinyect@outlook.es</a>.</li>
+        <li>El uso de la aplicación y de sus resultados es <b>responsabilidad exclusiva del usuario</b>. Los autores quedan eximidos de toda responsabilidad por daños derivados de un uso indebido, de no verificar la información o de errores en los datos.</li>
+      </ul>
+      <label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4;margin:0 0 14px;cursor:pointer"><input type="checkbox" id="discOk" style="width:22px;height:22px;flex:none;margin:0;accent-color:#176B40"><span>He leído y acepto estas condiciones, y me hago responsable de verificar cada dosis.</span></label>
+      <button type="button" id="discBtn" disabled style="width:100%;padding:14px;border:0;border-radius:12px;font-size:16px;font-weight:700;background:#176B40;color:#fff;cursor:pointer;opacity:.4">Aceptar y entrar</button>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var o = document.getElementById('disc'), c = document.getElementById('discOk'), b = document.getElementById('discBtn');
+    document.documentElement.style.overflow = 'hidden';
+    c.addEventListener('change', function () { b.disabled = !c.checked; b.style.opacity = c.checked ? '1' : '.4'; });
+    b.addEventListener('click', function () { if (!c.checked) return; o.style.display = 'none'; document.documentElement.style.overflow = ''; });
+  })();
+  </script>
   <div id="status" class="msg" role="status" hidden></div>
 
   <section class="panel" id="p-calc" role="tabpanel" aria-labelledby="tab-calc">
