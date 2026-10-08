@@ -48,7 +48,10 @@
   [hidden] { display: none !important; }
   .selrow { display: flex; align-items: center; gap: 12px; }
   .selrow select { flex: 0 1 200px; min-width: 0; }
-  .pres { display: flex; flex: none; }
+  .pres { display: flex; flex: none; gap: 4px; }
+  .pres .vbtn { background: none; border: 2px solid transparent; border-radius: 12px; padding: 2px; cursor: pointer; font: inherit; }
+  .pres .vbtn.on { border-color: var(--brand); background: rgba(23,107,64,.08); }
+  .pres .vbtn:not(.on) { opacity: .6; }
   .pres svg { width: 100px; height: 125px; display: block; }
   .pres .vs { fill: #7A8F83; } .pres .vc { fill: var(--num); }
   .pres .vg { fill: var(--surface); stroke: var(--num); stroke-width: 2.5; stroke-linejoin: round; }
@@ -525,7 +528,36 @@ function showPres(boxId, d) {
   const b = $(boxId), c = concOf(d);
   b.innerHTML = c ? vialSvg(c) : ''; b.hidden = !c;
 }
-function calc() { showPres('presCalc', DRUGS.find(x => x.id === $('med').value)); showDose('out', 'note', DRUGS.find(x => x.id === $('med').value), spOf('sp'), $('peso').value); }
+// Varias concentraciones (viales) de un mismo principio activo: d.otras = [mg/mL extra]. La dosis base (mL/kg) es la de la concentración de d.presentacion.
+let vialSel = null, vialMed = null;
+function baseMg(d) {
+  const m = /(\d+(?:[.,]\d+)?)\s*(mg\/mL|%)/i.exec(d.presentacion || '');
+  if (m) return parseFloat(m[1].replace(',', '.')) * (m[2] === '%' ? 10 : 1);
+  return d.mgml > 0 ? d.mgml : 0;
+}
+function concsOf(d) {
+  const b = d ? baseMg(d) : 0; if (!(b > 0)) return [];
+  const l = [b]; (d.otras || []).forEach(x => { x = Number(x); if (x > 0 && !l.includes(x)) l.push(x); });
+  return l.sort((a, b) => a - b);
+}
+function doseFor(d, sel) {
+  const b = baseMg(d); if (!sel || !(b > 0) || sel === b) return d;
+  const c = Object.assign({}, d); ['perro', 'gato'].forEach(k => { if (d[k] > 0) c[k] = Math.round(d[k] * b / sel * 1e6) / 1e6; });
+  return c;
+}
+function calc() {
+  const d = DRUGS.find(x => x.id === $('med').value);
+  if (d && d.id !== vialMed) { vialSel = null; vialMed = d.id; }
+  const cl = concsOf(d), base = d ? baseMg(d) : 0;
+  if (vialSel && !cl.includes(vialSel)) vialSel = null;
+  const sel = vialSel || base, box = $('presCalc');
+  if (cl.length > 1) {
+    box.innerHTML = cl.map(c => '<button type="button" class="vbtn' + (c === sel ? ' on' : '') + '" data-c="' + c + '" aria-pressed="' + (c === sel) + '" aria-label="Vial de ' + nf4.format(c) + ' mg/mL">' + vialSvg({ n: nf4.format(c), u: 'mg/mL' }) + '</button>').join('');
+    box.hidden = false;
+  } else showPres('presCalc', d);
+  showDose('out', 'note', d ? doseFor(d, sel) : d, spOf('sp'), $('peso').value);
+}
+$('presCalc').addEventListener('click', e => { const b = e.target.closest('.vbtn'); if (!b) return; vialSel = parseFloat(b.dataset.c); calc(); });
 function mCalc() { showPres('presMine', MINE.find(x => x.id === $('mSel').value)); showDose('mOut', 'mNoteOut', MINE.find(x => x.id === $('mSel').value), spOf('sp2'), $('mPeso').value); }
 
 function fillSelect(sel, items, loadedFlag, emptyLabel, lsKey, placeholder) {
@@ -675,11 +707,29 @@ function applyAccess() {
   }
   const close = (w, t) => w === t || (t.length >= 5 && lev(w, t) <= (t.length >= 8 ? 2 : 1)) || (w.length >= 6 && t.startsWith(w));
   const toks = s => norm(s).split(' ').filter(x => x.length >= 3 && !/\d/.test(x) && x !== 'mg' && x !== 'ml');
+  // Marcas equivalentes (misma concentración) que solo se usan para reconocer la voz; no salen en el listado.
+  const MARCAS = {
+    'inflacam': ['Metacam', 'Loxicom', 'Meloxidyl', 'Canidolor', 'Lozenord'],
+    'prevomax': ['Cerenia', 'Vominil'],
+    'ganadexil-enro': ['Baytril', 'Enrovall', 'Enrocill'],
+    'clamoxyl': ['Zoobiotic', 'Lungocil', 'Vetrimoxin'],
+    'dexametasona': ['Cortexona', 'Dexrapid', 'Cenmetasona', 'Dexafast', 'Colvasone'],
+    'tramadol': ['Adolonta', 'Tradonal'],
+    'ondansetron': ['Zofran'],
+    'metoclopramida': ['Primperan'],
+    'furosemida': ['Seguril'],
+    'diazepam': ['Valium', 'Diazedor'],
+    'butorfanol': ['Torphadine', 'Torbugesic', 'Butorvet', 'Alvegesic'],
+    'buprenorfina': ['Buprecare', 'Vetergesic', 'Bupaq', 'Buprelab', 'Bupredine', 'Temgesic'],
+    'metadona': ['Semfortan', 'Comfortan', 'Synthadon', 'Insistor'],
+    'carprofeno': ['Rimadyl', 'Cartaxx', 'Profexx'],
+    'robenacoxib': ['Onsior', 'Robexera', 'Robenord']
+  };
   function findDrugs(t, pool) {
     const words = norm(t).split(' ');
     let best = 0, res = [];
     pool.forEach(d => {
-      const names = [d.nombre].concat(d.comercial ? String(d.comercial).split(/[\/,]/) : []);
+      const names = [d.nombre].concat(d.comercial ? String(d.comercial).split(/[\/,]/) : [], MARCAS[d.id] || []);
       let sc = 0;
       names.forEach(n => {
         const tk = toks(n); if (!tk.length) return;
@@ -778,12 +828,13 @@ function applyAccess() {
           showTab('calc');
           document.querySelector('input[name=sp][value=' + S.sp + ']').checked = true;
           $('med').value = S.med.id; $('peso').value = String(S.w).replace('.', ',');
+          vialSel = null;
           document.querySelectorAll('input[name=sp]').forEach(r => r.dispatchEvent(new Event('change')));
           const dose = S.med[S.sp], plural = S.sp === 'perro' ? 'perros' : 'gatos';
           if (!(dose > 0)) { await say(S.med.nombre + ' no está indicado para ' + plural + '.', true); }
           else {
             const vol = dose * S.w;
-            await say('La dosis de ' + S.med.nombre + ' es ' + (vol < 0.01 ? 'menos de 0,01' : nf.format(vol)) + ' mililitros.', true);
+            await say('La dosis de ' + S.med.nombre + ' es ' + (vol < 0.01 ? 'menos de 0,01' : nf.format(vol)) + ' mililitros' + (concsOf(S.med).length > 1 ? ', con el vial de ' + nf.format(baseMg(S.med)) + ' miligramos por mililitro' : '') + '.', true);
           }
           break;
         }
@@ -817,7 +868,7 @@ CRI_DRUGS.butorfanol = { nombre: 'Butorfanol', conc: 2, concs: [2, 4, 10], carga
 CRI_DRUGS.dexmedetomidina = { nombre: 'Dexmedetomidina', conc: 0.1, concs: [0.1, 0.5], carga: { rango: '0,001–0,002 mg/kg', def: '0,001' }, cri: { rango: '0,0005–0,002 mg/kg/h', def: '0,001' } };
 CRI_DRUGS.dobutamina = { nombre: 'Dobutamina', conc: 12.5, carga: null, cri: { rango: '0,06–0,6 mg/kg/h', def: '0,12' } };
 CRI_DRUGS.dopamina = { nombre: 'Dopamina', conc: 40, concs: [40, 80, 160], carga: null, cri: { rango: '0,12–0,6 mg/kg/h', def: '0,4' } };
-CRI_DRUGS.furosemida = { nombre: 'Furosemida', conc: 50, carga: { rango: '1–4 mg/kg', def: '2' }, cri: { rango: '0,1–1 mg/kg/h', def: '0,5' } };
+CRI_DRUGS.furosemida = { nombre: 'Furosemida', conc: 10, carga: { rango: '1–4 mg/kg', def: '2' }, cri: { rango: '0,1–1 mg/kg/h', def: '0,5' } };
 CRI_DRUGS.hidromorfona = { nombre: 'Hidromorfona', conc: 2, concs: [2, 10], carga: { rango: '0,05–0,1 mg/kg', def: '0,05' }, cri: { rango: '0,024–0,072 mg/kg/h', def: '0,025' } };
 CRI_DRUGS.metoclopramida = { nombre: 'Metoclopramida', conc: 5, carga: { rango: '0,2–0,4 mg/kg', def: '0,2' }, cri: { rango: '0,01–0,09 mg/kg/h', def: '0,05' } };
 CRI_DRUGS.midazolam = { nombre: 'Midazolam', conc: 1, concs: [1, 5], carga: { rango: '0,1–0,3 mg/kg SC, IM, IV', def: '0,2' }, cri: { rango: '0,2–0,4 mg/kg/h', def: '0,2' } };
@@ -1041,7 +1092,7 @@ document.querySelectorAll('input[name=sp3]').forEach(r => r.addEventListener('ch
 criSetCards();
 
 /* Modo independiente: sin sesión de Claude, los medicamentos van incluidos en este archivo y los protocolos se guardan en el navegador. */
-const EMBED = [{"id": "antihistaminico-syva", "data": {"comercial": "Antihistamínico (Syva)", "gato": 0.2, "nombre": "Difenhidramina", "nota": "Rango: 0,4–1 mL por 5 kg", "perro": 0.2, "presentacion": "25 mg/mL 100 mL (Syva)"}}, {"id": "buscapina", "data": {"comercial": "Buscapina", "gato": 0.05, "nombre": "Buscapina", "nota": "20 kg = 1 mL", "perro": 0.05, "presentacion": "25 mg/mL 100 mL"}}, {"id": "catosal", "data": {"comercial": "Catosal", "gato": 0.1, "nombre": "Catosal", "nota": "Rango: 0,1–0,15 mL/kg", "perro": 0.1, "presentacion": "100 mL"}}, {"id": "clamoxyl", "data": {"comercial": "Clamoxyl", "gato": 0.1, "nombre": "Amoxicilina", "nota": "", "perro": 0.1, "presentacion": "150 mg/mL 100 mL (Zoetis)"}}, {"id": "convenia", "data": {"comercial": "Convenia", "gato": 0.1, "nombre": "Cefovecina", "nota": "", "perro": 0.1, "presentacion": "10 mL (Zoetis)"}}, {"id": "cortesonavet", "data": {"comercial": "Cortesonavet", "gato": 0.1, "nombre": "Cortexona", "nota": "Rango: 0,05–0,1 mL/kg", "perro": 0.1, "presentacion": "2 mg/mL 50 mL"}}, {"id": "deyanail-retard", "data": {"comercial": "Deyanail Retard", "gato": 0.1, "nombre": "Deyanil", "nota": "Rango: 0,05–0,2 mL/kg", "perro": 0.1, "presentacion": "1 mg/mL 50 mL (Fatro)"}}, {"id": "emedog", "data": {"comercial": "Emedog", "gato": 0.1, "nombre": "Apomorfina", "nota": "", "perro": 0.1, "presentacion": "1 mg/mL"}}, {"id": "ganadexil-enro", "data": {"comercial": "Ganadexil Enro 5 %", "gato": 0.1, "nombre": "Enrofloxacino 5 %", "nota": "Con Enro 2,5 %: 0,2 mL/kg", "perro": 0.1, "presentacion": "50 mg/mL 100 mL (Livisto)"}}, {"id": "hemo-5x", "data": {"comercial": "Hemo 5X", "gato": 0.1, "nombre": "Etamsilato", "nota": "", "perro": 0.1, "presentacion": "20 mL (Ecuphar)"}}, {"id": "inflacam", "data": {"comercial": "Inflacam", "gato": 0.04, "nombre": "Meloxicam", "nota": "", "perro": 0.04, "presentacion": "5 mg/mL 20 mL (inyectable)"}}, {"id": "marbocyl-1", "data": {"comercial": "Marbocyl 1 %", "gato": 0.2, "nombre": "Marbofloxacino 1 %", "nota": "Dosis diaria habitual: 2 mg/kg", "nota_perro": "Alternativa en perros: 4 mg/kg (0,4 mL/kg) para 4 días", "perro": 0.2, "presentacion": "1 % 20 mL (Vetoquinol)", "vias": ["sc", "iv"]}}, {"id": "marbocyl-2", "data": {"comercial": "Marbocyl 2 %", "gato": 0.1, "nombre": "Marbofloxacino 2 %", "nota": "2 mg/kg", "perro": 0.1, "presentacion": "2 %", "vias": ["sc", "iv"]}}, {"id": "prednisolona-fatro", "data": {"comercial": "Prednisolona Fatro", "gato": 0.04, "nombre": "Prednisolona", "nota": "1 mL por 25 kg", "perro": 0.04, "presentacion": "25 mg/mL 10 mL", "vias": ["im"]}}, {"id": "prevomax", "data": {"comercial": "Prevomax", "gato": 0.1, "nombre": "Maropitant", "nota": "", "perro": 0.1, "presentacion": "10 mg/mL 20 mL", "vias": ["sc", "iv"]}}, {"id": "rivalgin", "data": {"comercial": "Rivalgin", "gato": 0, "nombre": "Metamizol", "nota": "Rango: 0,04 / 0,06–0,1 mL/kg", "perro": 0.04, "presentacion": "500 mg/mL 100 mL (Vetviva)"}}, {"id": "tolfedine", "data": {"comercial": "Tolfedine", "gato": 0.1, "nombre": "Ácido tolfenámico", "nota": "Gatos solo subcutáneo", "perro": 0.1, "presentacion": "40 mg/mL 30 mL"}}, {"id": "vetmedin", "data": {"comercial": "Vetmedin", "gato": 0.2, "nombre": "Pimobendán", "nota": "", "perro": 0.2, "presentacion": "0,75 mg/mL 5 mL"}}];
+const EMBED = [{"id": "antihistaminico-syva", "data": {"comercial": "Antihistamínico (Syva)", "gato": 0.2, "nombre": "Difenhidramina", "nota": "Rango: 0,4–1 mL por 5 kg", "perro": 0.2, "presentacion": "25 mg/mL 100 mL (Syva)"}}, {"id": "buscapina", "data": {"comercial": "Buscapina", "gato": 0.05, "nombre": "Buscapina", "nota": "20 kg = 1 mL", "perro": 0.05, "presentacion": "25 mg/mL 100 mL"}}, {"id": "catosal", "data": {"comercial": "Catosal", "gato": 0.1, "nombre": "Catosal", "nota": "Rango: 0,1–0,15 mL/kg", "perro": 0.1, "presentacion": "100 mL"}}, {"id": "clamoxyl", "data": {"comercial": "Clamoxyl", "gato": 0.1, "nombre": "Amoxicilina", "nota": "", "perro": 0.1, "presentacion": "150 mg/mL 100 mL (Zoetis)"}}, {"id": "convenia", "data": {"comercial": "Convenia", "gato": 0.1, "nombre": "Cefovecina", "nota": "", "perro": 0.1, "presentacion": "10 mL (Zoetis)"}}, {"id": "deyanail-retard", "data": {"comercial": "Deyanail Retard", "gato": 0.1, "nombre": "Deyanil", "nota": "Rango: 0,05–0,2 mL/kg", "perro": 0.1, "presentacion": "1 mg/mL 50 mL (Fatro)"}}, {"id": "emedog", "data": {"comercial": "Emedog", "gato": 0.1, "nombre": "Apomorfina", "nota": "", "perro": 0.1, "presentacion": "1 mg/mL"}}, {"id": "ganadexil-enro", "data": {"comercial": "Ganadexil Enro 5 %", "gato": 0.1, "nombre": "Enrofloxacino", "nota": "5 mg/kg", "perro": 0.1, "presentacion": "50 mg/mL 100 mL (Livisto)", "otras": [25]}}, {"id": "hemo-5x", "data": {"comercial": "Hemo 5X", "gato": 0.1, "nombre": "Etamsilato", "nota": "", "perro": 0.1, "presentacion": "20 mL (Ecuphar)"}}, {"id": "inflacam", "data": {"comercial": "Inflacam", "gato": 0.04, "nombre": "Meloxicam", "nota": "", "perro": 0.04, "presentacion": "5 mg/mL 20 mL (inyectable)", "otras": [20]}}, {"id": "marbocyl-1", "data": {"comercial": "Marbocyl 1 %", "gato": 0.2, "nombre": "Marbofloxacino 1 %", "nota": "Dosis diaria habitual: 2 mg/kg", "nota_perro": "Alternativa en perros: 4 mg/kg (0,4 mL/kg) para 4 días", "perro": 0.2, "presentacion": "1 % 20 mL (Vetoquinol)", "vias": ["sc", "iv"]}}, {"id": "marbocyl-2", "data": {"comercial": "Marbocyl 2 %", "gato": 0.1, "nombre": "Marbofloxacino 2 %", "nota": "2 mg/kg", "perro": 0.1, "presentacion": "2 %", "vias": ["sc", "iv"]}}, {"id": "prednisolona-fatro", "data": {"comercial": "Prednisolona Fatro", "gato": 0.04, "nombre": "Prednisolona", "nota": "1 mL por 25 kg", "perro": 0.04, "presentacion": "25 mg/mL 10 mL", "vias": ["im"]}}, {"id": "prevomax", "data": {"comercial": "Prevomax", "gato": 0.1, "nombre": "Maropitant", "nota": "", "perro": 0.1, "presentacion": "10 mg/mL 20 mL", "vias": ["sc", "iv"]}}, {"id": "rivalgin", "data": {"comercial": "Rivalgin", "gato": 0, "nombre": "Metamizol", "nota": "Rango: 0,04 / 0,06–0,1 mL/kg", "perro": 0.04, "presentacion": "500 mg/mL 100 mL (Vetviva)"}}, {"id": "tolfedine", "data": {"comercial": "Tolfedine", "gato": 0.1, "nombre": "Ácido tolfenámico", "nota": "Gatos solo subcutáneo", "perro": 0.1, "presentacion": "40 mg/mL 30 mL"}}, {"id": "vetmedin", "data": {"comercial": "Vetmedin", "gato": 0.2, "nombre": "Pimobendán", "nota": "", "perro": 0.2, "presentacion": "0,75 mg/mL 5 mL"}}, {"id": "dexametasona", "data": {"comercial": "Cortesonavet", "gato": 0.05, "nombre": "Dexametasona", "nota": "Rango: 0,05–0,1 mL/kg · Por defecto 0,1 mg/kg · Ficha: IM (IV solo en shock)", "perro": 0.05, "presentacion": "2 mg/mL 50 mL", "vias": ["im"]}}, {"id": "tramadol", "data": {"comercial": "Tramadol", "gato": 0.04, "nombre": "Tramadol", "nota": "Perro 3 mg/kg · Gato 2 mg/kg · Vías sin datos veterinarios: por extrapolación de la ficha humana (IV lenta, IM, SC)", "perro": 0.06, "presentacion": "50 mg/mL"}}, {"id": "ondansetron", "data": {"comercial": "Ondansetrón", "gato": 0.05, "nombre": "Ondansetrón", "nota": "0,1 mg/kg · Vías sin datos veterinarios: por extrapolación de la ficha humana (IV lenta, IM)", "perro": 0.05, "presentacion": "2 mg/mL"}}, {"id": "metoclopramida", "data": {"comercial": "Metoclopramida", "gato": 0.1, "nombre": "Metoclopramida", "nota": "0,5 mg/kg · Vías sin datos veterinarios: por extrapolación de la ficha humana (IV lenta, IM)", "perro": 0.1, "presentacion": "5 mg/mL"}}, {"id": "furosemida", "data": {"comercial": "Furosemida", "gato": 0.1, "nombre": "Furosemida", "nota": "Perro 2 mg/kg · Gato 1 mg/kg · Vías sin datos veterinarios: por extrapolación de la ficha humana (IV; IM solo si no es posible la IV)", "perro": 0.2, "presentacion": "10 mg/mL"}}, {"id": "atropina", "data": {"comercial": "Atropina", "gato": 0.02, "nombre": "Atropina", "nota": "0,02 mg/kg · Vías sin datos veterinarios: por extrapolación de la ficha humana (IV, IM, SC)", "perro": 0.02, "presentacion": "1 mg/mL"}}, {"id": "diazepam", "data": {"comercial": "Diazepam", "gato": 0.1, "nombre": "Diazepam", "nota": "Rango: 0,1–2 mg/kg (0,02–0,4 mL/kg) · Preferente 0,5 mg/kg · Ficha: solo IV lenta", "perro": 0.1, "presentacion": "5 mg/mL", "vias": ["iv"]}}, {"id": "butorfanol", "data": {"comercial": "Butorfanol", "gato": 0.02, "nombre": "Butorfanol", "nota": "0,2 mg/kg · Ficha (Torphadine): IV, IM y SC en perros y gatos", "perro": 0.02, "presentacion": "10 mg/mL", "vias": ["sc", "im", "iv"]}}, {"id": "buprenorfina", "data": {"comercial": "Buprenorfina", "gato": 0.03, "nombre": "Buprenorfina", "nota": "Rango: 0,03–0,06 mL/kg (0,3–0,6 mL por 10 kg) · Ficha (Buprecare): solo IM; otras marcas pueden incluir IV", "perro": 0.03, "presentacion": "0,3 mg/mL", "vias": ["im"]}}, {"id": "metadona", "data": {"comercial": "Metadona", "gato": 0.03, "nombre": "Metadona", "nota": "Perro 0,5–1 mg/kg (0,05–0,1 mL/kg) · Gato 0,3–0,6 mg/kg (0,03–0,06 mL/kg) · Ficha (Semfortan): IM en ambos; en perro también IV y SC", "perro": 0.05, "presentacion": "10 mg/mL", "vias": ["im"]}}, {"id": "carprofeno", "data": {"comercial": "Carprofeno", "gato": 0.04, "nombre": "Carprofeno", "nota": "Perro 4 mg/kg · Gato 2 mg/kg (ficha: 4 mg/kg, 2 mg/kg si dolor leve), solo una dosis · Ficha: IV o SC", "perro": 0.08, "presentacion": "50 mg/mL", "vias": ["sc", "iv"]}}, {"id": "robenacoxib", "data": {"comercial": "Robenacoxib", "gato": 0.1, "nombre": "Robenacoxib", "nota": "2 mg/kg · Ficha: solo SC", "perro": 0.1, "presentacion": "20 mg/mL", "vias": ["sc"]}}, {"id": "adrenalina", "data": {"comercial": "Adrenalina", "gato": 0.01, "nombre": "Adrenalina", "nota": "Dosis de parada: 0,01 mg/kg · Vías sin datos veterinarios: por extrapolación de la ficha humana (IM; IV diluida a 0,1 mg/mL o intraósea)", "perro": 0.01, "presentacion": "1 mg/mL"}}, {"id": "naloxona", "data": {"comercial": "Naloxona", "gato": 0.05, "nombre": "Naloxona", "nota": "0,02 mg/kg · Vías sin datos veterinarios: por extrapolación de la ficha humana (IV, IM)", "perro": 0.05, "presentacion": "0,4 mg/mL"}}];
 const lsCols = {};
 function lsCol(name) {
   if (lsCols[name]) return lsCols[name];
