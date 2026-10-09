@@ -829,11 +829,18 @@ function applyAccess() {
     return new Promise(res => {
       if (!synthOk || !active) return res();
       try {
-        speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES'; u.rate = 1.02;
         let done = false; const fin = () => { if (!done) { done = true; res(); } };
-        u.onend = fin; u.onerror = fin; setTimeout(fin, 9000 + t.length * 90);
-        speechSynthesis.speak(u);
+        const speakIt = n => {
+          const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES'; u.rate = 1.02;
+          let started = false;
+          u.onstart = () => { started = true; };
+          u.onend = fin; u.onerror = fin;
+          try { speechSynthesis.resume(); } catch (e) {}
+          speechSynthesis.speak(u);
+          if (n < 2) setTimeout(() => { if (!started && !done && !speechSynthesis.speaking) { try { speechSynthesis.cancel(); } catch (e) {} setTimeout(() => speakIt(n + 1), 150); } }, 1500);
+        };
+        if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(() => speakIt(0), 150); } else setTimeout(() => speakIt(0), 150);
+        setTimeout(fin, 12000 + t.length * 90);
       } catch (e) { res(); }
     });
   }
@@ -906,7 +913,7 @@ function applyAccess() {
     }
     active = false; vf.hidden = true; btn.classList.remove('on'); btn.setAttribute('aria-pressed', 'false');
   }
-  btn.addEventListener('click', () => { if (active) { stop(); show(''); } else { if (textMode) { vf.hidden = false; vt.focus(); } run(); } });
+  btn.addEventListener('click', () => { if (active) { stop(); show(''); } else { try { if (synthOk) { const w = new SpeechSynthesisUtterance(' '); w.volume = 0; speechSynthesis.speak(w); } } catch (e) {} if (textMode) { vf.hidden = false; vt.focus(); } run(); } });
 })();
 
 $('peso').addEventListener('input', calc);
