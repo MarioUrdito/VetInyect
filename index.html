@@ -319,7 +319,18 @@
   (function () {
     var o = document.getElementById('disc'), c = document.getElementById('discOk'), b = document.getElementById('discBtn');
     var K = 'vetinyect_disc_ok', WEEK = 7 * 24 * 3600 * 1000;
-    function voz() { if (/[?&]mic=1/.test(location.search)) setTimeout(function () { var m = document.getElementById('micBtn'); if (m) m.click(); }, 350); }
+    function voz() {
+      if (!/[?&]mic=1/.test(location.search)) return;
+      setTimeout(function () {
+        var m = document.getElementById('micBtn'); if (!m) return;
+        if (navigator.userActivation && navigator.userActivation.hasBeenActive) { m.click(); return; }
+        var d = document.createElement('div');
+        d.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(14,59,37,.92);display:flex;align-items:center;justify-content:center;padding:24px';
+        d.innerHTML = '<button type="button" style="width:100%;max-width:340px;padding:28px 20px;border:0;border-radius:24px;background:#F2A03D;color:#0E3B25;font:800 24px system-ui,sans-serif;cursor:pointer">🎤 Toca para hablar</button>';
+        d.firstChild.addEventListener('click', function () { d.remove(); m.click(); });
+        document.body.appendChild(d);
+      }, 350);
+    }
     var okAt = 0; try { okAt = +localStorage.getItem(K) || 0; } catch (e) {}
     if (okAt && Date.now() - okAt >= 0 && Date.now() - okAt < WEEK) { o.style.display = 'none'; window.addEventListener('load', function () { setTimeout(voz, 400); }); return; }
     document.documentElement.style.overflow = 'hidden';
@@ -832,14 +843,16 @@ function applyAccess() {
         let done = false; const fin = () => { if (!done) { done = true; res(); } };
         const speakIt = n => {
           const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES'; u.rate = 1.02;
+          try { const vs = speechSynthesis.getVoices() || []; const v = vs.find(x => /^es[-_]ES/i.test(x.lang)) || vs.find(x => /^es/i.test(x.lang)); if (v) { u.voice = v; u.lang = v.lang; } } catch (e) {}
           let started = false;
           u.onstart = () => { started = true; };
-          u.onend = fin; u.onerror = fin;
+          u.onend = fin;
+          u.onerror = ev => { if (ev && ev.error && ev.error !== 'canceled' && ev.error !== 'interrupted') show('Sin voz: ' + ev.error + '. Revisa el volumen y el «Texto a voz» de Android.', 'err'); fin(); };
           try { speechSynthesis.resume(); } catch (e) {}
           speechSynthesis.speak(u);
           if (n < 2) setTimeout(() => { if (!started && !done && !speechSynthesis.speaking) { try { speechSynthesis.cancel(); } catch (e) {} setTimeout(() => speakIt(n + 1), 150); } }, 1500);
         };
-        if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(() => speakIt(0), 150); } else setTimeout(() => speakIt(0), 150);
+        if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(() => speakIt(0), 400); } else setTimeout(() => speakIt(0), 400);
         setTimeout(fin, 12000 + t.length * 90);
       } catch (e) { res(); }
     });
