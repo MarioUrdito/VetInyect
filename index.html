@@ -319,18 +319,7 @@
   (function () {
     var o = document.getElementById('disc'), c = document.getElementById('discOk'), b = document.getElementById('discBtn');
     var K = 'vetinyect_disc_ok', WEEK = 7 * 24 * 3600 * 1000;
-    function voz() {
-      if (!/[?&]mic=1/.test(location.search)) return;
-      setTimeout(function () {
-        var m = document.getElementById('micBtn'); if (!m) return;
-        if (navigator.userActivation && navigator.userActivation.hasBeenActive) { m.click(); return; }
-        var d = document.createElement('div');
-        d.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(14,59,37,.92);display:flex;align-items:center;justify-content:center;padding:24px';
-        d.innerHTML = '<button type="button" style="width:100%;max-width:340px;padding:28px 20px;border:0;border-radius:24px;background:#F2A03D;color:#0E3B25;font:800 24px system-ui,sans-serif;cursor:pointer">🎤 Toca para hablar</button>';
-        d.firstChild.addEventListener('click', function () { d.remove(); m.click(); });
-        document.body.appendChild(d);
-      }, 350);
-    }
+    function voz() { if (/[?&]mic=1/.test(location.search)) setTimeout(function () { var m = document.getElementById('micBtn'); if (m) m.click(); }, 350); }
     var okAt = 0; try { okAt = +localStorage.getItem(K) || 0; } catch (e) {}
     if (okAt && Date.now() - okAt >= 0 && Date.now() - okAt < WEEK) { o.style.display = 'none'; window.addEventListener('load', function () { setTimeout(voz, 400); }); return; }
     document.documentElement.style.overflow = 'hidden';
@@ -354,12 +343,7 @@
       </div>
       <div class="field">
         <label for="med">Medicamento</label>
-        <button type="button" id="medBtn" aria-haspopup="listbox" aria-expanded="false" style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid #c9d8ce;border-radius:10px;background:#fff;font:inherit;text-align:left;cursor:pointer"><span id="medBtnT">Elegir medicamento</span><span aria-hidden="true">▾</span></button>
-        <div id="medPanel" hidden style="border:1px solid #c9d8ce;border-radius:10px;background:#fff;margin-top:6px;padding:10px;box-shadow:0 8px 24px rgba(14,59,37,.12)">
-          <input type="search" id="medQ" placeholder="Buscar medicamento o marca…" autocomplete="off" aria-label="Buscar medicamento" style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #c9d8ce;border-radius:8px;font:inherit">
-          <ul id="medList" role="listbox" style="list-style:none;margin:0;padding:0;max-height:240px;overflow:auto"></ul>
-        </div>
-        <div class="selrow"><select id="med" disabled hidden style="display:none"><option>Cargando…</option></select><div class="pres" id="presCalc" hidden></div></div>
+        <div class="selrow"><select id="med" disabled><option>Cargando…</option></select><div class="pres" id="presCalc" hidden></div></div>
       </div>
       <div class="field">
         <label for="peso">Peso (kg)</label>
@@ -591,7 +575,6 @@ function doseFor(d, sel) {
   return c;
 }
 function calc() {
-  if ($('medBtnT')) syncMedBtn();
   const d = DRUGS.find(x => x.id === $('med').value);
   if (d && d.id !== vialMed) { vialSel = null; vialMed = d.id; }
   const cl = concsOf(d), base = d ? baseMg(d) : 0;
@@ -623,32 +606,6 @@ const MARCAS = {
     'carprofeno': ['Rimadyl', 'Cartaxx', 'Profexx'],
     'robenacoxib': ['Onsior', 'Robexera', 'Robenord']
   };
-const normS = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-let medLetter = '';
-function syncMedBtn() {
-  const sel = $('med'), o = sel.options[sel.selectedIndex];
-  $('medBtnT').textContent = (sel.value && o) ? o.textContent : 'Elegir medicamento';
-  $('medBtn').disabled = sel.disabled;
-}
-function renderMed() {
-  if (!loaded) return;
-  fillSelect($('med'), DRUGS, loaded, 'Sin medicamentos', 'med', 'Elegir medicamento');
-  const q = normS($('medQ').value.trim());
-  const items = DRUGS.filter(d => {
-    if (!q) return true;
-    return normS([d.nombre, d.comercial].concat(MARCAS[d.id] || []).join(' ')).indexOf(q) >= 0;
-  });
-  let last = '', html = '';
-  items.forEach(d => {
-    const L = normS(d.nombre).charAt(0).toUpperCase();
-    if (L !== last) { last = L; html += '<li role="presentation" aria-hidden="true" style="position:sticky;top:0;background:#DDF1E5;color:#176B40;font-weight:800;font-size:13px;letter-spacing:1px;padding:4px 8px;border-radius:6px;margin:6px 0 2px">' + L + '</li>'; }
-    html += '<li role="option" data-id="' + esc(d.id) + '" style="padding:10px 8px;border-radius:8px;cursor:pointer;font-weight:' + (d.id === $('med').value ? '700' : '500') + '">' + esc(d.nombre) + '</li>';
-  });
-  $('medList').innerHTML = html || '<li style="padding:10px 8px;color:#5b7566">Sin resultados</li>';
-  syncMedBtn();
-  calc();
-}
-function medPanel(open) { $('medPanel').hidden = !open; $('medBtn').setAttribute('aria-expanded', String(open)); if (open) { $('medQ').value = ''; renderMed(); setTimeout(function () { try { $('medQ').focus(); } catch (e) {} }, 50); } }
 function fillSelect(sel, items, loadedFlag, emptyLabel, lsKey, placeholder) {
   if (!loadedFlag) return;
   const prev = placeholder ? sel.value : (sel.value || lsGet()[lsKey]);
@@ -840,20 +797,11 @@ function applyAccess() {
     return new Promise(res => {
       if (!synthOk || !active) return res();
       try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES'; u.rate = 1.02;
         let done = false; const fin = () => { if (!done) { done = true; res(); } };
-        const speakIt = n => {
-          const u = new SpeechSynthesisUtterance(t); u.lang = 'es-ES'; u.rate = 1.02;
-          try { const vs = speechSynthesis.getVoices() || []; const v = vs.find(x => /^es[-_]ES/i.test(x.lang)) || vs.find(x => /^es/i.test(x.lang)); if (v) { u.voice = v; u.lang = v.lang; } } catch (e) {}
-          let started = false;
-          u.onstart = () => { started = true; };
-          u.onend = fin;
-          u.onerror = ev => { if (ev && ev.error && ev.error !== 'canceled' && ev.error !== 'interrupted') show('Sin voz: ' + ev.error + '. Revisa el volumen y el «Texto a voz» de Android.', 'err'); fin(); };
-          try { speechSynthesis.resume(); } catch (e) {}
-          speechSynthesis.speak(u);
-          if (n < 2) setTimeout(() => { if (!started && !done && !speechSynthesis.speaking) { try { speechSynthesis.cancel(); } catch (e) {} setTimeout(() => speakIt(n + 1), 150); } }, 1500);
-        };
-        if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(() => speakIt(0), 400); } else setTimeout(() => speakIt(0), 400);
-        setTimeout(fin, 12000 + t.length * 90);
+        u.onend = fin; u.onerror = fin; setTimeout(fin, 9000 + t.length * 90);
+        speechSynthesis.speak(u);
       } catch (e) { res(); }
     });
   }
@@ -926,13 +874,10 @@ function applyAccess() {
     }
     active = false; vf.hidden = true; btn.classList.remove('on'); btn.setAttribute('aria-pressed', 'false');
   }
-  btn.addEventListener('click', () => { if (active) { stop(); show(''); } else { try { if (synthOk) { const w = new SpeechSynthesisUtterance(' '); w.volume = 0; speechSynthesis.speak(w); } } catch (e) {} if (textMode) { vf.hidden = false; vt.focus(); } run(); } });
+  btn.addEventListener('click', () => { if (active) { stop(); show(''); } else { if (textMode) { vf.hidden = false; vt.focus(); } run(); } });
 })();
 
 $('peso').addEventListener('input', calc);
-$('medQ').addEventListener('input', renderMed);
-$('medBtn').addEventListener('click', () => medPanel($('medPanel').hidden));
-$('medList').addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (!li) return; $('med').value = li.dataset.id; $('med').dispatchEvent(new Event('change')); syncMedBtn(); medPanel(false); });
 $('med').addEventListener('change', () => { lsSet({ med: $('med').value }); calc(); });
 document.querySelectorAll('input[name=sp]').forEach(r => r.addEventListener('change', calc));
 $('mPeso').addEventListener('input', mCalc);
@@ -1217,7 +1162,7 @@ async function init() {
     DRUGS = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
       .filter(d => d.nombre && (d.perro > 0 || d.gato > 0)).sort(byName);
     $('calcEmpty').hidden = DRUGS.length > 0;
-    renderMed();
+    fillSelect($('med'), DRUGS, loaded, 'Sin medicamentos', 'med', 'Elegir medicamento');
     calc();
   }, () => { showStatus('Se perdió la conexión con la base de medicamentos. Recarga la página.'); });
   if (uid) {
