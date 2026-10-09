@@ -3,7 +3,7 @@
   "short_name": "VetInyect",
   "description": "Calculadora de dosis de inyectables veterinarios",
   "lang": "es",
-  "start_url": "./",
+  "start_url": "./?voz=1",
   "scope": "./",
   "display": "standalone",
   "background_color": "#FFFFFF",
