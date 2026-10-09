@@ -319,7 +319,7 @@
   (function () {
     var o = document.getElementById('disc'), c = document.getElementById('discOk'), b = document.getElementById('discBtn');
     var K = 'vetinyect_disc_ok', WEEK = 7 * 24 * 3600 * 1000;
-    function voz() { if (/[?&]voz=1/.test(location.search)) setTimeout(function () { var m = document.getElementById('micBtn'); if (m) m.click(); }, 350); }
+    function voz() { if (/[?&]mic=1/.test(location.search)) setTimeout(function () { var m = document.getElementById('micBtn'); if (m) m.click(); }, 350); }
     var okAt = 0; try { okAt = +localStorage.getItem(K) || 0; } catch (e) {}
     if (okAt && Date.now() - okAt >= 0 && Date.now() - okAt < WEEK) { o.style.display = 'none'; window.addEventListener('load', function () { setTimeout(voz, 400); }); return; }
     document.documentElement.style.overflow = 'hidden';
