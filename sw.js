@@ -1,4 +1,4 @@
-const C = 'vetinyect-v87';
+const C = 'vetinyect-v88';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(['./', 'index.html', 'manifest.json', 'logo-192.png', 'apple-touch-icon.png'])).catch(() => {})); });
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {
